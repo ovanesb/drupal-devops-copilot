@@ -1,0 +1,8 @@
+services:
+  copilot:
+    build: .
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    tty: true

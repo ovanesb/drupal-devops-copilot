@@ -1,0 +1,20 @@
+```json
+{
+  "files": [
+    {
+      "path": "web/modules/custom/ec2_ccs_128/ec2_ccs_128.info.yml",
+      "content": "name: 'EC2 CCS 128'\ntype: module\ndescription: 'A trivial Drupal 11 custom module for CCS-128 task.'\ncore_version_requirement: ^11\npackage: Custom"
+    },
+    {
+      "path": "web/modules/custom/ec2_ccs_128/ec2_ccs_128.module",
+      "content": "<?php\n\nuse Drupal\\Core\\Extension\\ModuleHandlerInterface;\n\n/**
+ * Implements hook_help().
+ */\nfunction ec2_ccs_128_help(\$route_name, \\Drupal\\Core\\Routing\\RouteMatchInterface \$route_match) {\n  if (\$route_name == 'help.page.ec2_ccs_128') {\n    return t('This is a trivial help section for the EC2 CCS 128 module.');\n  }\n}"
+    },
+    {
+      "path": "web/modules/custom/ec2_ccs_128/README.md",
+      "content": "# EC2 CCS 128 Module\n\nThis is a minimal Drupal 11 custom module created for the CCS-128 task. It provides a trivial help section on the module page."
+    }
+  ]
+}
+```

@@ -1,0 +1,56 @@
+# VCS
+.git
+.gitignore
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+
+# Environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Coverage / test output
+.coverage
+.coverage.*
+coverage/
+coverage.xml
+htmlcov/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets
+.env
+
+# Local clones of other repos
+work/
+
+# Project notes (exclude from image)
+notes/
+
+# Optional: exclude tests from the image if you don't run them inside the container
+tests/
+
+# Misc
+*.log
+*.pid
+docker-compose.override.yml
