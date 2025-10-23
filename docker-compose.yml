@@ -1,8 +1,88 @@
 services:
-  copilot:
-    build: .
-    volumes:
-      - .:/app
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
     env_file:
       - .env
-    tty: true
+    environment:
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8000
+      OLLAMA_BASE_URL: http://ollama:11434
+      SSH_AUTH_SOCK: /ssh-agent
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./work:/app/work
+      - ${SSH_AUTH_SOCK:-/run/invalid}:/ssh-agent
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./ui
+      dockerfile: ../docker/web.Dockerfile
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["with-ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:11434/api/tags"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    entrypoint: >
+      /bin/bash -c "
+        /bin/ollama serve & 
+        sleep 8 && 
+        echo '[Ollama] Checking for model qwen2.5-coder:7b-instruct-q4_0...' && 
+        ollama pull qwen2.5-coder:7b-instruct-q4_0 || true && 
+        echo '[Ollama] Model ensured, service ready.' && 
+        wait
+      "
+
+  cli:
+    build:
+      context: .
+      dockerfile: docker/cli.Dockerfile
+    env_file:
+      - .env
+    working_dir: /app
+    environment:
+      SSH_AUTH_SOCK: /ssh-agent
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - ./:/app:cached
+      - ./work:/app/work
+      - ${SSH_AUTH_SOCK:-/run/invalid}:/ssh-agent
+    entrypoint: ["bash","-lc","copilot-workflow --help"]
+    restart: "no"
+
+volumes:
+  ollama_models:

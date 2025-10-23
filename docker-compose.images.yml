@@ -1,0 +1,12 @@
+services:
+  api:
+    image: ghcr.io/${OWNER}/${REPO}-api:${TAG:-latest}
+    build: null
+
+  web:
+    image: ghcr.io/${OWNER}/${REPO}-web:${TAG:-latest}
+    build: null
+
+  cli:
+    image: ghcr.io/${OWNER}/${REPO}-cli:${TAG:-latest}
+    build: null
