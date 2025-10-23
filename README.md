@@ -1,32 +1,18 @@
-[//]: # (<p align="center">)
-
-[//]: # (  <!-- Status / meta -->)
-
-[//]: # (  <a href="https://github.com/ovanesb/drupal-devops-copilot/releases">)
-
-[//]: # (    <img alt="tag" src="https://img.shields.io/github/v/release/ovanesb/drupal-devops-copilot?display_name=tag">)
-
-[//]: # (  </a>)
-
-[//]: # (  <a href="LICENSE">)
-
-[//]: # (    <img alt="license" src="https://img.shields.io/github/license/ovanesb/drupal-devops-copilot">)
-
-[//]: # (  </a>)
-
-[//]: # (  <a href="https://github.com/ovanesb/drupal-devops-copilot/commit/main">)
-
-[//]: # (    <img alt="last commit" src="https://img.shields.io/github/last-commit/ovanesb/drupal-devops-copilot">)
-
-[//]: # (  </a>)
-
-[//]: # (  <a href="https://github.com/ovanesb/drupal-devops-copilot/stargazers">)
-
-[//]: # (    <img alt="stars" src="https://img.shields.io/github/stars/ovanesb/drupal-devops-copilot?style=social">)
-
-[//]: # (  </a>)
-
-[//]: # (</p>)
+<p align="center">
+  <!-- Status / meta -->
+  <a href="https://github.com/ovanesb/drupal-devops-copilot/releases">
+    <img alt="tag" src="https://img.shields.io/github/v/release/ovanesb/drupal-devops-copilot?display_name=tag">
+  </a>
+  <a href="LICENSE">
+    <img alt="license" src="https://img.shields.io/github/license/ovanesb/drupal-devops-copilot">
+  </a>
+  <a href="https://github.com/ovanesb/drupal-devops-copilot/commit/main">
+    <img alt="last commit" src="https://img.shields.io/github/last-commit/ovanesb/drupal-devops-copilot">
+  </a>
+  <a href="https://github.com/ovanesb/drupal-devops-copilot/stargazers">
+    <img alt="stars" src="https://img.shields.io/github/stars/ovanesb/drupal-devops-copilot?style=social">
+  </a>
+</p>
 
 <p align="center">
   <!-- Stack -->
@@ -147,6 +133,12 @@ We aim for a respectful, inclusive, and helpful space for all contributors.
 
 - 🚀 [Quickstart (local)](docs/quickstart.md)  
   *Clone, setup venv, install deps, configure .env, run smoke test.*
+
+- 🐳 [Docker Quickstart (public images)](docs/docker-quickstart.md)  
+  *One command to pull & run API, Web, and Ollama.*
+
+- 🛠️ [Docker for Development](docs/docker-dev.md)  
+  *Live-reload containers, source mounts, and developer workflow.*
 
 - 🖥️ [Local LLM (Ollama) tips](docs/ollama-tips.md)  
   *Installation, model management, tuning parameters, and troubleshooting.*
