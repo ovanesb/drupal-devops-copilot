@@ -1,16 +1,22 @@
 // ui/pages/index.tsx
 import * as React from "react";
+import Header from "../components/Header";
+import StatusBadge from "../components/StatusBadge";
+import CopyButton from "../components/CopyButton";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 type LogSetter = React.Dispatch<React.SetStateAction<string[]>>;
+type Status = "idle" | "running" | "success" | "error";
 
-async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolean) => void) {
+async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolean) => void, setStatus: (s: Status) => void) {
     setLogs((l) => [...l, `--- streaming: GET ${url}`]);
+    setStatus("running");
     try {
         const resp = await fetch(url);
         if (!resp.ok || !resp.body) {
             setLogs((l) => [...l, `HTTP ${resp.status}`]);
+            setStatus("error");
             return;
         }
         const reader = resp.body.getReader();
@@ -30,41 +36,62 @@ async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolea
                 }
             }
         }
+        setStatus("success");
     } catch (e: any) {
         setLogs((l) => [...l, `Error: ${e?.message || e}`]);
+        setStatus("error");
     } finally {
         setRunning(false);
     }
 }
 
-function Box({ title, children }: { title: string; children: React.ReactNode }) {
+function Box({ title, icon, children, status, variant = "default" }: { title: string; icon: string; children: React.ReactNode; status?: Status; variant?: "default" | "primary" }) {
+    const variantClasses = variant === "primary"
+        ? "border-drupal-300 dark:border-drupal-700 bg-gradient-to-br from-white to-drupal-50 dark:from-gray-800 dark:to-drupal-950"
+        : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800";
+
     return (
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 16, background: "#fff" }}>
-            <h2 style={{ marginTop: 0, color: "#111" }}>{title}</h2>
+        <div className={`border rounded-2xl p-6 mb-6 shadow-lg hover:shadow-xl transition-all duration-300 animate-slide-up ${variantClasses}`}>
+            <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                    <span className="text-3xl">{icon}</span>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
+                </div>
+                {status && <StatusBadge status={status} />}
+            </div>
             {children}
         </div>
     );
 }
 
-function LogPane({ logs }: { logs: string[] }) {
+function LogPane({ logs, collapsed, onToggle }: { logs: string[]; collapsed: boolean; onToggle: () => void }) {
+    const logsText = logs.join("\n");
+
     return (
-        <div
-            style={{
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: 12,
-                background: "#0b1020",
-                color: "#dbeafe",
-                padding: 12,
-                borderRadius: 8,
-                minHeight: 180,
-                maxHeight: 420,
-                overflow: "auto",
-                whiteSpace: "pre-wrap",
-            }}
-        >
-            {logs.map((l, i) => (
-                <div key={i}>{l}</div>
-            ))}
+        <div className="mt-5">
+            <div className="flex items-center justify-between mb-3">
+                <button
+                    onClick={onToggle}
+                    className="text-sm font-medium text-drupal-600 dark:text-drupal-400 hover:text-drupal-700 dark:hover:text-drupal-300 transition-colors flex items-center gap-2"
+                >
+                    <span className="text-lg">{collapsed ? "▶" : "▼"}</span>
+                    <span>{collapsed ? "Show" : "Hide"} logs ({logs.length} lines)</span>
+                </button>
+                {!collapsed && logs.length > 0 && <CopyButton text={logsText} />}
+            </div>
+            {!collapsed && (
+                <div className="font-mono text-xs bg-gradient-to-br from-gray-900 to-gray-950 dark:from-black dark:to-gray-900 text-blue-100 dark:text-blue-200 p-5 rounded-xl max-h-96 overflow-auto whitespace-pre-wrap shadow-inner border border-gray-700 animate-fade-in">
+                    {logs.length === 0 ? (
+                        <div className="text-gray-500 italic">No logs yet...</div>
+                    ) : (
+                        logs.map((l, i) => (
+                            <div key={i} className="hover:bg-white/5 px-1 rounded">
+                                {l}
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -98,14 +125,14 @@ function PlanPreviewBox() {
     };
 
     const Section = ({ title, children }: any) => (
-        <div style={{ margin: "12px 0" }}>
-            <div style={{ fontWeight: 700, marginBottom: 6, color: "#111" }}>{title}</div>
-            <div style={{ color: "#111", lineHeight: 1.5 }}>{children}</div>
+        <div className="my-5">
+            <div className="font-bold mb-2 text-lg text-gray-900 dark:text-gray-100">{title}</div>
+            <div className="text-gray-800 dark:text-gray-200 leading-relaxed">{children}</div>
         </div>
     );
 
     const List = ({ items }: { items: string[] }) => (
-        <ul style={{ margin: "6px 0 0 18px", color: "#111" }}>
+        <ul className="mt-3 ml-6 space-y-2 list-disc text-gray-800 dark:text-gray-200">
             {items?.map((x, i) => (
                 <li key={i}>{x}</li>
             ))}
@@ -113,41 +140,54 @@ function PlanPreviewBox() {
     );
 
     return (
-        <Box title="🧭 Plan Preview (AC-aware)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+        <Box title="Plan Preview" icon="🧭">
+            <div className="flex gap-3 items-center mb-5 flex-wrap">
                 <input
                     value={issueKey}
                     onChange={(e) => setIssueKey(e.target.value)}
                     placeholder="Jira key (e.g., CCS-123)"
-                    style={{ flex: 1, minWidth: 240, padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
+                    className="flex-1 min-w-[240px] px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-drupal-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 transition-all"
                 />
-                <button disabled={!issueKey || loading} onClick={act} style={{ padding: "8px 12px" }}>
-                    {loading ? "Generating…" : "Generate Plan"}
+                <button
+                    disabled={!issueKey || loading}
+                    onClick={act}
+                    className="px-6 py-3 bg-gradient-to-r from-drupal-500 to-drupal-600 hover:from-drupal-600 hover:to-drupal-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                >
+                    {loading ? "⏳ Generating…" : "✨ Generate Plan"}
                 </button>
             </div>
 
-            {error && <div style={{ color: "#b91c1c" }}>{error}</div>}
+            {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-xl animate-fade-in">
+                    ❌ {error}
+                </div>
+            )}
 
             {data && (
-                <div style={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 14, color: "#111" }}>
-                        <div><strong>Issue:</strong> {data.issue_key}</div>
-                        <div><strong>Summary:</strong> {data.summary || "(no title)"}</div>
-                        <div><strong>Suggested module:</strong> <code style={{ color: "#111" }}>{data.suggested_module_name}</code></div>
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl p-5 animate-fade-in">
+                    <div className="text-sm space-y-3">
+                        <div className="flex items-center gap-2">
+                            <strong className="text-gray-900 dark:text-gray-100">Issue:</strong>
+                            <span className="text-gray-700 dark:text-gray-300 font-mono">{data.issue_key}</span>
+                        </div>
+                        <div>
+                            <strong className="text-gray-900 dark:text-gray-100">Summary:</strong>
+                            <span className="text-gray-700 dark:text-gray-300 ml-2">{data.summary || "(no title)"}</span>
+                        </div>
+                        <div>
+                            <strong className="text-gray-900 dark:text-gray-100">Suggested module:</strong>
+                            <code className="ml-2 px-2.5 py-1 bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded font-mono text-sm">{data.suggested_module_name}</code>
+                        </div>
                     </div>
                     {data.description_md && (
                         <Section title="Description">
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0, background: "#fff", color: "#111", padding: 0 }}>
-                {data.description_md}
-              </pre>
+                            <pre className="whitespace-pre-wrap bg-white dark:bg-gray-800 p-4 rounded-lg text-sm shadow-inner">{data.description_md}</pre>
                             {data.description_checklist?.length ? <List items={data.description_checklist} /> : null}
                         </Section>
                     )}
                     {data.acceptance_md && (
                         <Section title="Acceptance Criteria">
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0, background: "#fff", color: "#111", padding: 0 }}>
-                {data.acceptance_md}
-              </pre>
+                            <pre className="whitespace-pre-wrap bg-white dark:bg-gray-800 p-4 rounded-lg text-sm shadow-inner">{data.acceptance_md}</pre>
                             {data.acceptance_checklist?.length ? <List items={data.acceptance_checklist} /> : null}
                         </Section>
                     )}
@@ -165,28 +205,38 @@ function OneShotCLITile() {
     const [issueKey, setIssueKey] = React.useState("");
     const [running, setRunning] = React.useState(false);
     const [logs, setLogs] = React.useState<string[]>([]);
+    const [status, setStatus] = React.useState<Status>("idle");
+    const [collapsed, setCollapsed] = React.useState(true);
 
     const act = async () => {
         setRunning(true);
         setLogs([]);
+        setCollapsed(false);
         const qs = new URLSearchParams({ issue_key: issueKey.trim() });
-        await streamGET(`${apiBase}/stream/one-shot?${qs.toString()}`, setLogs, setRunning);
+        await streamGET(`${apiBase}/stream/one-shot?${qs.toString()}`, setLogs, setRunning, setStatus);
     };
 
     return (
-        <Box title="🚀 One-Shot: Jira → MR → Review/Merge → Deploy → QA">
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap", color: "#111" }}>
+        <Box title="One-Shot Workflow" icon="🚀" status={status} variant="primary">
+            <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">
+                Complete automation: Jira → MR → Review/Merge → Deploy → QA
+            </p>
+            <div className="flex gap-3 items-center flex-wrap">
                 <input
                     value={issueKey}
                     onChange={(e) => setIssueKey(e.target.value)}
                     placeholder="Jira key (e.g., CCS-123)"
-                    style={{ flex: 1, minWidth: 240, padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
+                    className="flex-1 min-w-[240px] px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-drupal-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 transition-all"
                 />
-                <button disabled={!issueKey || running} onClick={act} style={{ padding: "8px 12px" }}>
-                    {running ? "Running…" : "Run One-Shot"}
+                <button
+                    disabled={!issueKey || running}
+                    onClick={act}
+                    className="px-8 py-3 bg-gradient-to-r from-drupal-500 to-drupal-600 hover:from-drupal-600 hover:to-drupal-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl text-lg"
+                >
+                    {running ? "🔄 Running…" : "▶️ Run One-Shot"}
                 </button>
             </div>
-            <LogPane logs={logs} />
+            <LogPane logs={logs} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
         </Box>
     );
 }
@@ -196,28 +246,38 @@ function Step1WorkflowTile() {
     const [issueKey, setIssueKey] = React.useState("");
     const [running, setRunning] = React.useState(false);
     const [logs, setLogs] = React.useState<string[]>([]);
+    const [status, setStatus] = React.useState<Status>("idle");
+    const [collapsed, setCollapsed] = React.useState(true);
 
     const act = async () => {
         setRunning(true);
         setLogs([]);
+        setCollapsed(false);
         const qs = new URLSearchParams({ issue_key: issueKey.trim() });
-        await streamGET(`${apiBase}/stream/workflow-cli?${qs.toString()}`, setLogs, setRunning);
+        await streamGET(`${apiBase}/stream/workflow-cli?${qs.toString()}`, setLogs, setRunning, setStatus);
     };
 
     return (
-        <Box title="Step 1 — Open MR (copilot-workflow)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap", color: "#111" }}>
+        <Box title="Step 1: Open MR" icon="📝" status={status}>
+            <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">
+                Create branch, generate code, and open merge request
+            </p>
+            <div className="flex gap-3 items-center flex-wrap">
                 <input
                     value={issueKey}
                     onChange={(e) => setIssueKey(e.target.value)}
                     placeholder="Jira key (e.g., CCS-104)"
-                    style={{ flex: 1, minWidth: 240, padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
+                    className="flex-1 min-w-[240px] px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-drupal-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 transition-all"
                 />
-                <button disabled={!issueKey || running} onClick={act} style={{ padding: "8px 12px" }}>
-                    {running ? "Running…" : "Run copilot-workflow"}
+                <button
+                    disabled={!issueKey || running}
+                    onClick={act}
+                    className="px-6 py-3 bg-gradient-to-r from-drupal-500 to-drupal-600 hover:from-drupal-600 hover:to-drupal-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                >
+                    {running ? "🔄 Running…" : "▶️ Run Workflow"}
                 </button>
             </div>
-            <LogPane logs={logs} />
+            <LogPane logs={logs} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
         </Box>
     );
 }
@@ -230,45 +290,72 @@ function Step2ReviewMergeDeployTile() {
     const [verbose, setVerbose] = React.useState(true);
     const [running, setRunning] = React.useState(false);
     const [logs, setLogs] = React.useState<string[]>([]);
+    const [status, setStatus] = React.useState<Status>("idle");
+    const [collapsed, setCollapsed] = React.useState(true);
 
     const act = async () => {
         setRunning(true);
         setLogs([]);
+        setCollapsed(false);
         const qs = new URLSearchParams({
             mr_url: mrUrl.trim(),
             auto_merge: String(autoMerge),
             deploy: String(deploy),
             verbose: String(verbose),
         });
-        await streamGET(`${apiBase}/stream/ai-review-merge-cli?${qs.toString()}`, setLogs, setRunning);
+        await streamGET(`${apiBase}/stream/ai-review-merge-cli?${qs.toString()}`, setLogs, setRunning, setStatus);
     };
 
     return (
-        <Box title="Step 2 — Review / Merge / Deploy (copilot-ai-review-merge)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap", color: "#111" }}>
+        <Box title="Step 2: Review & Deploy" icon="✅" status={status}>
+            <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">
+                AI review, merge to staging, and trigger deployment
+            </p>
+            <div className="flex gap-3 items-center flex-wrap mb-4">
                 <input
                     value={mrUrl}
                     onChange={(e) => setMrUrl(e.target.value)}
                     placeholder="MR URL"
-                    style={{ flex: 1, minWidth: 320, padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
+                    className="flex-1 min-w-[320px] px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-drupal-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 transition-all"
                 />
-                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input type="checkbox" checked={autoMerge} onChange={(e) => setAutoMerge(e.target.checked)} />
-                    --auto-merge
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input type="checkbox" checked={deploy} onChange={(e) => setDeploy(e.target.checked)} />
-                    --deploy
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input type="checkbox" checked={verbose} onChange={(e) => setVerbose(e.target.checked)} />
-                    --verbose
-                </label>
-                <button disabled={!mrUrl || running} onClick={act} style={{ padding: "8px 12px" }}>
-                    {running ? "Running…" : "Run ai-review-merge"}
+                <button
+                    disabled={!mrUrl || running}
+                    onClick={act}
+                    className="px-6 py-3 bg-gradient-to-r from-drupal-500 to-drupal-600 hover:from-drupal-600 hover:to-drupal-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                >
+                    {running ? "🔄 Running…" : "▶️ Review & Merge"}
                 </button>
             </div>
-            <LogPane logs={logs} />
+            <div className="flex gap-5 flex-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        checked={autoMerge}
+                        onChange={(e) => setAutoMerge(e.target.checked)}
+                        className="w-5 h-5 text-drupal-500 rounded focus:ring-2 focus:ring-drupal-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-drupal-600 dark:group-hover:text-drupal-400">--auto-merge</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        checked={deploy}
+                        onChange={(e) => setDeploy(e.target.checked)}
+                        className="w-5 h-5 text-drupal-500 rounded focus:ring-2 focus:ring-drupal-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-drupal-600 dark:group-hover:text-drupal-400">--deploy</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        checked={verbose}
+                        onChange={(e) => setVerbose(e.target.checked)}
+                        className="w-5 h-5 text-drupal-500 rounded focus:ring-2 focus:ring-drupal-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-drupal-600 dark:group-hover:text-drupal-400">--verbose</span>
+                </label>
+            </div>
+            <LogPane logs={logs} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
         </Box>
     );
 }
@@ -278,50 +365,68 @@ function Step3QATile() {
     const [issueKey, setIssueKey] = React.useState("");
     const [running, setRunning] = React.useState(false);
     const [logs, setLogs] = React.useState<string[]>([]);
+    const [status, setStatus] = React.useState<Status>("idle");
+    const [collapsed, setCollapsed] = React.useState(true);
 
     const act = async () => {
         setRunning(true);
         setLogs([]);
+        setCollapsed(false);
         const qs = new URLSearchParams({ issue_key: issueKey.trim() });
-        await streamGET(`${apiBase}/stream/qa-ec2-cli?${qs.toString()}`, setLogs, setRunning);
+        await streamGET(`${apiBase}/stream/qa-ec2-cli?${qs.toString()}`, setLogs, setRunning, setStatus);
     };
 
     return (
-        <Box title="Step 3 — QA on EC2 (copilot-qa-ec2)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap", color: "#111" }}>
+        <Box title="Step 3: QA Verification" icon="🧪" status={status}>
+            <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">
+                Run Drush QA checks on EC2 and update Jira status
+            </p>
+            <div className="flex gap-3 items-center flex-wrap">
                 <input
                     value={issueKey}
                     onChange={(e) => setIssueKey(e.target.value)}
                     placeholder="Jira key (e.g., CCS-104)"
-                    style={{ flex: 1, minWidth: 240, padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
+                    className="flex-1 min-w-[240px] px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-drupal-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 transition-all"
                 />
-                <button disabled={!issueKey || running} onClick={act} style={{ padding: "8px 12px" }}>
-                    {running ? "Running…" : "Run QA"}
+                <button
+                    disabled={!issueKey || running}
+                    onClick={act}
+                    className="px-6 py-3 bg-gradient-to-r from-drupal-500 to-drupal-600 hover:from-drupal-600 hover:to-drupal-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                >
+                    {running ? "🔄 Running…" : "▶️ Run QA"}
                 </button>
             </div>
-            <LogPane logs={logs} />
+            <LogPane logs={logs} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
         </Box>
     );
 }
 
 export default function Home() {
     return (
-        <div style={{ maxWidth: 900, margin: "24px auto", padding: "0 16px", background: "#fafafa" }}>
-            <h1 style={{ color: "#111" }}>Drupal DevOps Co-Pilot</h1>
-            <p style={{ color: "#374151" }}>
-                Run the full flow in one click or step through each stage independently — all with live streaming logs.
-            </p>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <Header />
 
-            {/* One-click */}
-            <OneShotCLITile />
+                {/* One-click */}
+                <OneShotCLITile />
 
-            {/* Step-by-step */}
-            <Step1WorkflowTile />
-            <Step2ReviewMergeDeployTile />
-            <Step3QATile />
+                {/* Step-by-step */}
+                <div className="space-y-6">
+                    <Step1WorkflowTile />
+                    <Step2ReviewMergeDeployTile />
+                    <Step3QATile />
+                </div>
 
-            {/* Optional helper */}
-            <PlanPreviewBox />
+                {/* Optional helper */}
+                <div className="mt-8">
+                    <PlanPreviewBox />
+                </div>
+
+                {/* Footer */}
+                <div className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <p>Powered by Drupal, FastAPI, and Ollama</p>
+                </div>
+            </div>
         </div>
     );
 }
