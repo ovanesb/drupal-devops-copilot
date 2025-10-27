@@ -51,16 +51,16 @@ function Box({ title, icon, children, status, variant = "default" }: { title: st
         : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800";
 
     return (
-        <div className={`border rounded-2xl p-6 mb-6 shadow-lg hover:shadow-xl transition-all duration-300 animate-slide-up ${variantClasses}`}>
+        <section className={`border rounded-2xl p-6 mb-6 shadow-lg hover:shadow-xl transition-all duration-300 animate-slide-up ${variantClasses}`} aria-labelledby={`section-${title.replace(/\s+/g, '-').toLowerCase()}`}>
             <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
-                    <span className="text-3xl">{icon}</span>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
+                    <span className="text-3xl" role="img" aria-hidden="true">{icon}</span>
+                    <h2 id={`section-${title.replace(/\s+/g, '-').toLowerCase()}`} className="text-2xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
                 </div>
                 {status && <StatusBadge status={status} />}
             </div>
             {children}
-        </div>
+        </section>
     );
 }
 
@@ -68,19 +68,21 @@ function LogPane({ logs, collapsed, onToggle }: { logs: string[]; collapsed: boo
     const logsText = logs.join("\n");
 
     return (
-        <div className="mt-5">
+        <div className="mt-5" role="region" aria-label="Log output">
             <div className="flex items-center justify-between mb-3">
                 <button
                     onClick={onToggle}
-                    className="text-sm font-medium text-drupal-600 dark:text-drupal-400 hover:text-drupal-700 dark:hover:text-drupal-300 transition-colors flex items-center gap-2"
+                    className="text-sm font-medium text-drupal-600 dark:text-drupal-400 hover:text-drupal-700 dark:hover:text-drupal-300 transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-drupal-500 rounded px-2 py-1"
+                    aria-expanded={!collapsed}
+                    aria-label={`${collapsed ? "Show" : "Hide"} log output with ${logs.length} lines`}
                 >
-                    <span className="text-lg">{collapsed ? "▶" : "▼"}</span>
+                    <span className="text-lg" aria-hidden="true">{collapsed ? "▶" : "▼"}</span>
                     <span>{collapsed ? "Show" : "Hide"} logs ({logs.length} lines)</span>
                 </button>
                 {!collapsed && logs.length > 0 && <CopyButton text={logsText} />}
             </div>
             {!collapsed && (
-                <div className="font-mono text-xs bg-gradient-to-br from-gray-900 to-gray-950 dark:from-black dark:to-gray-900 text-blue-100 dark:text-blue-200 p-5 rounded-xl max-h-96 overflow-auto whitespace-pre-wrap shadow-inner border border-gray-700 animate-fade-in">
+                <pre className="font-mono text-xs bg-gradient-to-br from-gray-900 to-gray-950 dark:from-black dark:to-gray-900 text-blue-100 dark:text-blue-200 p-5 rounded-xl max-h-96 overflow-auto whitespace-pre-wrap shadow-inner border border-gray-700 animate-fade-in" role="log" aria-live="polite" aria-atomic="false">
                     {logs.length === 0 ? (
                         <div className="text-gray-500 italic">No logs yet...</div>
                     ) : (
@@ -90,7 +92,7 @@ function LogPane({ logs, collapsed, onToggle }: { logs: string[]; collapsed: boo
                             </div>
                         ))
                     )}
-                </div>
+                </pre>
             )}
         </div>
     );
@@ -407,25 +409,27 @@ export default function Home() {
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <Header />
 
-                {/* One-click */}
-                <OneShotCLITile />
+                <main role="main">
+                    {/* One-click */}
+                    <OneShotCLITile />
 
-                {/* Step-by-step */}
-                <div className="space-y-6">
-                    <Step1WorkflowTile />
-                    <Step2ReviewMergeDeployTile />
-                    <Step3QATile />
-                </div>
+                    {/* Step-by-step */}
+                    <nav aria-label="Workflow steps" className="space-y-6">
+                        <Step1WorkflowTile />
+                        <Step2ReviewMergeDeployTile />
+                        <Step3QATile />
+                    </nav>
 
-                {/* Optional helper */}
-                <div className="mt-8">
-                    <PlanPreviewBox />
-                </div>
+                    {/* Optional helper */}
+                    <aside className="mt-8" aria-label="Additional tools">
+                        <PlanPreviewBox />
+                    </aside>
+                </main>
 
                 {/* Footer */}
-                <div className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <footer className="mt-12 text-center text-sm text-gray-600 dark:text-gray-400" role="contentinfo">
                     <p>Powered by Drupal, FastAPI, and Ollama</p>
-                </div>
+                </footer>
             </div>
         </div>
     );
