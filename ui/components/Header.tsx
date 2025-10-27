@@ -3,7 +3,7 @@ import DarkModeToggle from "./DarkModeToggle";
 
 export default function Header() {
     return (
-        <div className="bg-drupal-gradient dark:bg-drupal-gradient-dark text-white shadow-lg mb-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-drupal-gradient dark:bg-drupal-gradient-dark text-white shadow-lg mb-8 px-4 sm:px-6 lg:px-8 py-8 rounded-2xl">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <div className="text-5xl">🚀</div>
