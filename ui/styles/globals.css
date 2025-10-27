@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+@theme {
+  --color-drupal-50: #e6f3fb;
+  --color-drupal-100: #cce7f7;
+  --color-drupal-200: #99cfef;
+  --color-drupal-300: #66b7e7;
+  --color-drupal-400: #339fdf;
+  --color-drupal-500: #0678BE;
+  --color-drupal-600: #0560a5;
+  --color-drupal-700: #04487c;
+  --color-drupal-800: #033053;
+  --color-drupal-900: #01182a;
+  --color-drupal-950: #000a15;
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fade-in: fadeIn 0.3s ease-in;
+  --animate-slide-up: slideUp 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -64,4 +92,17 @@ a {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Custom gradient utilities for Tailwind v4 */
+.bg-drupal-gradient {
+  background-image: linear-gradient(135deg, #0678BE 0%, #66b7e7 100%);
+}
+
+.bg-drupal-gradient-dark {
+  background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
+}
+
+.dark .bg-drupal-gradient {
+  background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
 }
