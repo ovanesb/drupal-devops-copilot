@@ -12,6 +12,7 @@ type Status = "idle" | "running" | "success" | "error";
 async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolean) => void, setStatus: (s: Status) => void) {
     setLogs((l) => [...l, `--- streaming: GET ${url}`]);
     setStatus("running");
+    let hasError = false;
     try {
         const resp = await fetch(url);
         if (!resp.ok || !resp.body) {
@@ -27,6 +28,18 @@ async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolea
             const chunk = decoder.decode(value, { stream: true });
             for (const line of chunk.split("\n")) {
                 if (!line.trim()) continue;
+
+                // Detect error patterns in the output
+                if (
+                    line.includes("[error]") ||
+                    line.includes("fatal:") ||
+                    line.includes("Error:") ||
+                    line.includes("Failed") ||
+                    line.match(/command exited with \d+:/)
+                ) {
+                    hasError = true;
+                }
+
                 try {
                     const obj = JSON.parse(line);
                     if (obj?.line) setLogs((l) => [...l, obj.line]);
@@ -36,7 +49,8 @@ async function streamGET(url: string, setLogs: LogSetter, setRunning: (b: boolea
                 }
             }
         }
-        setStatus("success");
+        // Set status based on whether errors were detected in the logs
+        setStatus(hasError ? "error" : "success");
     } catch (e: any) {
         setLogs((l) => [...l, `Error: ${e?.message || e}`]);
         setStatus("error");
