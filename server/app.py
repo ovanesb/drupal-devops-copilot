@@ -1,4 +1,3 @@
-# server/app.py
 from __future__ import annotations
 import os
 import re
@@ -9,6 +8,10 @@ from typing import Generator, Iterable, Optional, Tuple, Dict, Any
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+from server.routers import workflows, profiles
+
+# Routers for Sprint 2
+from server.routers import workflows, profiles
 
 # ---------- App ----------
 app = FastAPI(title="Drupal DevOps Co-Pilot API")
@@ -25,13 +28,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------- health ----------
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+# (Optional) root
+@app.get("/")
+def root():
+    return {"ok": True, "service": "Drupal DevOps Co-Pilot API"}
+
+# Mount NEW API routers
+app.include_router(workflows.router, prefix="/api")
+app.include_router(profiles.router, prefix="/api")
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPO = os.getenv("COPILOT_REPO_PATH", "./work/drupal-project")
 
 # ---------- LLM resolution (kept for future) ----------
-KNOWN_OPENAI = {
-    "gpt-4o", "gpt-4o-mini", "o4-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4"
-}
+KNOWN_OPENAI = {"gpt-4o", "gpt-4o-mini", "o4-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4"}
 DEFAULT_OPENAI = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini")
 DEFAULT_OLLAMA = os.getenv("OLLAMA_DEFAULT_MODEL", "qwen2.5-coder:7b-instruct-q4_0")
 
@@ -119,11 +134,6 @@ def _parse_mr_url_from_output(buffer: str) -> Optional[str]:
         return m.group(1)
     return None
 
-# ---------- health ----------
-@app.get("/health")
-def health():
-    return {"ok": True}
-
 # ---------- Plan Preview (no LLM) ----------
 @app.get("/plan/preview")
 def plan_preview(issue_key: str):
@@ -175,7 +185,7 @@ def plan_preview(issue_key: str):
     except Exception as e:
         return JSONResponse({"error": _safe_err(e)}, status_code=500)
 
-# ---------- One-shot CLI passthrough ----------
+# ---------- Streams ----------
 @app.get("/stream/one-shot")
 def stream_one_shot(issue_key: str):
     cmd = ["copilot-one-shot", issue_key]
@@ -193,14 +203,8 @@ def stream_one_shot(issue_key: str):
 
     return StreamingResponse(gen(), media_type="text/plain")
 
-# ---------- NEW: STEP-BY-STEP passthroughs ----------
-
 @app.get("/stream/workflow-cli")
 def stream_workflow_cli(issue_key: str):
-    """
-    Mirrors: copilot-workflow <ISSUE>
-    (Relies on .env for repo, project path, labels, draft, etc.)
-    """
     cmd = ["copilot-workflow", issue_key]
 
     def gen():
@@ -216,7 +220,6 @@ def stream_workflow_cli(issue_key: str):
 
     return StreamingResponse(gen(), media_type="text/plain")
 
-
 @app.get("/stream/ai-review-merge-cli")
 def stream_ai_review_merge_cli(
     mr_url: str,
@@ -224,10 +227,6 @@ def stream_ai_review_merge_cli(
     deploy: bool = Query(True),
     verbose: bool = Query(True),
 ):
-    """
-    Mirrors: copilot-ai-review-merge <MR_URL> --auto-merge --deploy --verbose
-    (Flags can be toggled by query, default True.)
-    """
     cmd = ["copilot-ai-review-merge", mr_url]
     if auto_merge:
         cmd.append("--auto-merge")
@@ -249,12 +248,8 @@ def stream_ai_review_merge_cli(
 
     return StreamingResponse(gen(), media_type="text/plain")
 
-
 @app.get("/stream/qa-ec2-cli")
 def stream_qa_ec2_cli(issue_key: str):
-    """
-    Mirrors: copilot-qa-ec2 <ISSUE>
-    """
     cmd = ["copilot-qa-ec2", issue_key]
 
     def gen():

@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { useFlowStore } from "@/lib/store";
 import { nodeTypesMap } from "@/components/nodes";
 import { validateWorkflow } from "@/lib/validation";
-import { useSaveWorkflow, useLoadWorkflow } from "@/lib/api";
+import { useWorkflow } from "@/hooks/useWorkflow";
 
 export function FlowBuilder() {
     const { nodes, edges, setNodes, setEdges, reset, selectNode } = useFlowStore();
@@ -55,23 +55,37 @@ export function FlowBuilder() {
 
     const nodeTypes: NodeTypes = useMemo(() => nodeTypesMap, []);
 
-    const saveMutation = useSaveWorkflow();
-    const loadQuery = useLoadWorkflow("demo-workflow");
+    // ---- NEW (Sprint 2): API-backed workflow persistence ----
+    const workflowId = 1; // keep fixed for now; later can come from route/state
+    const workflowName = "Demo Workflow";
+    const { workflowQuery, saveWorkflow, updateWorkflow } = useWorkflow(workflowId);
 
-    const onSave = () => {
+    const onSave = async () => {
         validateWorkflow.parse({ nodes: rfNodes, edges: rfEdges });
-        const payload = { id: "demo-workflow", nodes: rfNodes, edges: rfEdges };
-        saveMutation.mutate(payload);
-        alert("Saved ✨");
+        const payload = { name: workflowName, nodes: rfNodes, edges: rfEdges };
+        try {
+            if (workflowQuery.data) {
+                await updateWorkflow.mutateAsync(payload);
+            } else {
+                await saveWorkflow.mutateAsync(payload);
+            }
+            alert("Saved ✨");
+        } catch (e: any) {
+            alert(`Save failed: ${e?.message || e}`);
+        }
     };
 
-    const onLoad = () => {
-        const data = loadQuery.data;
-        if (data) {
-            setRfNodes(data.nodes);
-            setRfEdges(data.edges);
-        } else {
-            alert("No saved workflow yet");
+    const onLoad = async () => {
+        try {
+            const data = workflowQuery.data ?? (await workflowQuery.refetch()).data;
+            if (data) {
+                setRfNodes((data as any).nodes ?? []);
+                setRfEdges((data as any).edges ?? []);
+            } else {
+                alert("No saved workflow yet");
+            }
+        } catch (e: any) {
+            alert(`Load failed: ${e?.message || e}`);
         }
     };
 
