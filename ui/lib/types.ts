@@ -1,0 +1,1 @@
+export type NodeKind = "jiraTrigger" | "planPatch" | "createMR" | "ciWait" | "deploy" | "qa";

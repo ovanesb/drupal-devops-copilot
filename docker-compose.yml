@@ -1,4 +1,21 @@
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: copilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d copilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -10,31 +27,43 @@ services:
       UVICORN_PORT: 8000
       OLLAMA_BASE_URL: http://ollama:11434
       SSH_AUTH_SOCK: /ssh-agent
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/copilot
+      ALEMBIC_CONFIG: /app/server/alembic.ini
+    working_dir: /app
     ports:
       - "8000:8000"
     volumes:
       - ./work:/app/work
       - ${SSH_AUTH_SOCK:-/run/invalid}:/ssh-agent
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/health" ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
     restart: unless-stopped
 
+
   web:
     build:
       context: ./ui
       dockerfile: ../docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000/api
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     env_file:
       - .env
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_API_BASE: http://localhost:8000/api
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:3000/"]
       interval: 10s
@@ -59,11 +88,11 @@ services:
     restart: unless-stopped
     entrypoint: >
       /bin/bash -c "
-        /bin/ollama serve & 
-        sleep 8 && 
-        echo '[Ollama] Checking for model qwen2.5-coder:7b-instruct-q4_0...' && 
-        ollama pull qwen2.5-coder:7b-instruct-q4_0 || true && 
-        echo '[Ollama] Model ensured, service ready.' && 
+        /bin/ollama serve &
+        sleep 8 &&
+        echo '[Ollama] Checking for model qwen2.5-coder:7b-instruct-q4_0...' &&
+        ollama pull qwen2.5-coder:7b-instruct-q4_0 || true &&
+        echo '[Ollama] Model ensured, service ready.' &&
         wait
       "
 
@@ -86,3 +115,4 @@ services:
 
 volumes:
   ollama_models:
+  pgdata:

@@ -1,73 +1,110 @@
+/* Tailwind v4 core */
 @import "tailwindcss";
 
+/* Dark mode class variant (matches your setup) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---- Your theme tokens + animations (kept) ---- */
 @theme {
-  --color-drupal-50: #e6f3fb;
-  --color-drupal-100: #cce7f7;
-  --color-drupal-200: #99cfef;
-  --color-drupal-300: #66b7e7;
-  --color-drupal-400: #339fdf;
-  --color-drupal-500: #0678BE;
-  --color-drupal-600: #0560a5;
-  --color-drupal-700: #04487c;
-  --color-drupal-800: #033053;
-  --color-drupal-900: #01182a;
-  --color-drupal-950: #000a15;
+    --color-drupal-50: #e6f3fb;
+    --color-drupal-100: #cce7f7;
+    --color-drupal-200: #99cfef;
+    --color-drupal-300: #66b7e7;
+    --color-drupal-400: #339fdf;
+    --color-drupal-500: #0678BE;
+    --color-drupal-600: #0560a5;
+    --color-drupal-700: #04487c;
+    --color-drupal-800: #033053;
+    --color-drupal-900: #01182a;
+    --color-drupal-950: #000a15;
 
-  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  --animate-fade-in: fadeIn 0.3s ease-in;
-  --animate-slide-up: slideUp 0.4s ease-out;
+    --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animate-fade-in: fadeIn 0.3s ease-in;
+    --animate-slide-up: slideUp 0.4s ease-out;
 }
 
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+@keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes slideUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+
+/* ---- Global CSS variables for UI theming (added) ---- */
+/* Light tokens */
+:root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted-foreground: 240 3.8% 46.1%;
+    --border: 240 5.9% 90%;
+    --destructive: 0 84.2% 60.2%;
 }
 
-@keyframes slideUp {
-  0% { transform: translateY(10px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+/* Dark overrides when `.dark` is on <html> */
+.dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 71% 6%;
+    --card-foreground: 210 40% 98%;
+
+    --primary: 211 100% 50%;
+    --primary-foreground: 224 71% 4%;
+
+    --secondary: 222 47% 11%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted-foreground: 217 10% 65%;
+    --border: 217 16% 20%;
+    --destructive: 0 63% 31%;
 }
+
+/* ---- Base element resets + full-height layout ---- */
+html, body, #__next { height: 100%; }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Apply background/text via CSS vars so UI primitives work */
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
 }
 
-/* Custom scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+/* ---- Helper utility classes used by the Flow UI ---- */
+.bg-background { background-color: hsl(var(--background)); }
+.text-foreground { color: hsl(var(--foreground)); }
+.bg-card { background-color: hsl(var(--card)); }
+.text-card-foreground { color: hsl(var(--card-foreground)); }
+.bg-secondary { background-color: hsl(var(--secondary)); }
+.text-secondary-foreground { color: hsl(var(--secondary-foreground)); }
+.bg-primary { background-color: hsl(var(--primary)); }
+.text-primary-foreground { color: hsl(var(--primary-foreground)); }
+.bg-border { background-color: hsl(var(--border)); }
+.text-muted-foreground { color: hsl(var(--muted-foreground)); }
+.text-destructive { color: hsl(var(--destructive)); }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
+/* ---- Your custom scrollbars (kept) ---- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+.dark ::-webkit-scrollbar-track { background: #1f2937; }
+::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
 
-.dark ::-webkit-scrollbar-track {
-  background: #1f2937;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* Custom gradient utilities for Tailwind v4 */
+/* ---- Your gradients (kept) ---- */
 .bg-drupal-gradient {
-  background-image: linear-gradient(135deg, #0678BE 0%, #66b7e7 100%);
+    background-image: linear-gradient(135deg, #0678BE 0%, #66b7e7 100%);
 }
-
 .bg-drupal-gradient-dark {
-  background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
+    background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
 }
-
 .dark .bg-drupal-gradient {
-  background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
+    background-image: linear-gradient(135deg, #033053 0%, #04487c 100%);
 }

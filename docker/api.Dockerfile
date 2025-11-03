@@ -1,27 +1,41 @@
 # docker/api.Dockerfile
 FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# --- System dependencies ---
+# --- System deps (curl for healthcheck; build tools only if needed) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git openssh-client curl build-essential && \
-    rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # --- Copy manifests if they exist ---
-# We copy them separately and ignore if missing
-# (Docker only errors if a file listed in COPY does not exist)
-# So we add them conditionally
-COPY pyproject.toml /app/pyproject.toml
 COPY requirements.txt /app/requirements.txt
+COPY pyproject.toml /app/pyproject.toml
 
-# --- Install dependencies ---
+# --- Base runtime deps needed for Sprint 2 ---
+# (Install first to allow caching when app code changes)
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    sqlalchemy \
+    alembic \
+    psycopg2-binary \
+    pydantic
+
+# --- Project deps (optional if you also have requirements/pyproject) ---
 RUN if [ -f "requirements.txt" ]; then pip install --no-cache-dir -r requirements.txt; fi
 RUN if [ -f "pyproject.toml" ]; then pip install --no-cache-dir . || true; fi
 
-# --- Copy project source ---
-COPY copilot/ ./copilot/
-COPY server/ ./server/
+# --- Copy application source ---
+# Must include server/ (FastAPI app + alembic.ini/env.py/versions)
+# and your existing CLI helpers in copilot/ (if used by endpoints)
+COPY server/ /app/server/
+COPY copilot/ /app/copilot/
+
+# --- Entrypoint ---
 COPY docker/entrypoint.api.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
