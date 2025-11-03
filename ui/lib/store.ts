@@ -1,51 +1,59 @@
-"use client";
 import { create } from "zustand";
 import type { Edge, Node } from "@xyflow/react";
 
-export type IntegrationProfile = {
-    id: string;
-    name: string;
-    kind: "jira" | "gitlab" | "acquia" | "generic";
-    baseUrl?: string;
-    username?: string;
-};
+export type NodeTypeId =
+    | "jiraTrigger"
+    | "createMR"
+    | "planPatch"
+    | "ciWait"
+    | "deploy"
+    | "qa";
 
 type FlowState = {
     nodes: Node[];
     edges: Edge[];
-    profiles: IntegrationProfile[];
+    // selected node id (optional UX)
+    selectedId?: string | null;
 
-    setNodes: (n: Node[]) => void;
-    setEdges: (e: Edge[]) => void;
-    addNode: (n: Node) => void;
+    // core setters (already used by FlowBuilder)
+    setNodes: (nodes: Node[]) => void;
+    setEdges: (edges: Edge[]) => void;
 
-    addProfile: (p: IntegrationProfile) => void;
-    attachProfileToNode: (nodeId: string, profileId: string) => void;
-
+    // helpers
     reset: () => void;
-    selectNode: (id: string) => void;
+    selectNode: (id: string | null) => void;
+
+    // NEW: add a node (used by Palette click)
+    addNode: (type: NodeTypeId, position?: { x: number; y: number }) => void;
 };
 
 export const useFlowStore = create<FlowState>((set, get) => ({
     nodes: [],
     edges: [],
-    profiles: [],
+    selectedId: null,
 
     setNodes: (nodes) => set({ nodes }),
     setEdges: (edges) => set({ edges }),
-    addNode: (n) => set({ nodes: [...get().nodes, n] }),
 
-    addProfile: (p) => set({ profiles: [...get().profiles, p] }),
-    attachProfileToNode: (nodeId, profileId) =>
-        set({
-            nodes: get().nodes.map((n) =>
-                n.id === nodeId ? { ...n, data: { ...n.data, profileId } } : n
-            ),
-        }),
+    reset: () => set({ nodes: [], edges: [], selectedId: null }),
+    selectNode: (id) => set({ selectedId: id }),
 
-    reset: () => set({ nodes: [], edges: [] }),
-    selectNode: (id) =>
-        set({
-            nodes: get().nodes.map((n) => ({ ...n, selected: n.id === id })),
-        }),
+    addNode: (type, position) => {
+        const id = crypto.randomUUID();
+        const offset = (get().nodes?.length ?? 0) * 40;
+        const pos = position ?? { x: 420 + offset, y: 200 };
+
+        const n: Node = {
+            id,
+            type,
+            position: pos,
+            data: {
+                label: type,
+                profileId: null,
+                config: {},
+            },
+        };
+
+        set((s) => ({ nodes: [...(s.nodes || []), n] }));
+    },
 }));

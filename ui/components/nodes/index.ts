@@ -1,9 +1,15 @@
 import JiraTriggerNode from "./JiraTriggerNode";
+import CreateMrNode from "./CreateMrNode";
+import PlanPatchNode from "./PlanPatchNode";
+import CiWaitNode from "./CiWaitNode";
+import DeployNode from "./DeployNode";
+import QaNode from "./QaNode";
+
 export const nodeTypesMap = {
     jiraTrigger: JiraTriggerNode,
-    planPatch: JiraTriggerNode, // placeholder: reuse until custom nodes added
-    createMR: JiraTriggerNode,
-    ciWait: JiraTriggerNode,
-    deploy: JiraTriggerNode,
-    qa: JiraTriggerNode,
+    createMr: CreateMrNode,
+    planPatch: PlanPatchNode,
+    ciWait: CiWaitNode,
+    deploy: DeployNode,
+    qa: QaNode,
 };

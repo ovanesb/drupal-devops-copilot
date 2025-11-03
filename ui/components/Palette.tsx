@@ -1,43 +1,45 @@
 "use client";
-import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { v4 as uuid } from "uuid";
-import { useFlowStore } from "@/lib/store";
 
-const NODE_PRESETS = [
+import React from "react";
+
+type PaletteProps = {
+    onAddClick?: (type: string) => void; // optional: click-to-add
+};
+
+const ITEMS = [
     { type: "jiraTrigger", label: "Jira Trigger" },
-    { type: "planPatch", label: "Plan & Patch" },
-    { type: "createMR", label: "Create MR" },
-    { type: "ciWait", label: "CI Wait" },
-    { type: "deploy", label: "Deploy" },
-    { type: "qa", label: "QA" },
-] as const;
+    { type: "createMr",    label: "Create MR" },
+    { type: "planPatch",   label: "Plan & Patch" },
+    { type: "ciWait",      label: "CI Wait" },
+    { type: "deploy",      label: "Deploy" },
+    { type: "qa",          label: "QA" },
+];
 
-export function Palette() {
-    const addNode = useFlowStore((s) => s.addNode);
-    const initialPosition = useMemo(() => ({ x: 250, y: 100 }), []);
+export function Palette({ onAddClick }: PaletteProps) {
+    const onDragStart = (e: React.DragEvent<HTMLButtonElement>, type: string) => {
+        // React Flow checks these keys; we set all three to be safe across versions
+        e.dataTransfer.setData("application/reactflow", type);
+        e.dataTransfer.setData("application/reactflow-node", type);
+        e.dataTransfer.setData("application/reactflow/type", type);
+        e.dataTransfer.effectAllowed = "move";
+    };
 
     return (
-        <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Drag or click to add nodes.</p>
-            <Separator />
-            <div className="grid grid-cols-2 gap-2">
-                {NODE_PRESETS.map((p) => (
-                    <Button
-                        key={p.type}
-                        variant="outline"
-                        onClick={() =>
-                            addNode({
-                                id: uuid(),
-                                type: p.type as any,
-                                position: initialPosition,
-                                data: { title: p.label },
-                            })
-                        }
+        <div>
+            <p className="text-sm text-muted-foreground mb-2">
+                Drag or click to add nodes.
+            </p>
+            <div className="space-y-2">
+                {ITEMS.map((it) => (
+                    <button
+                        key={it.type}
+                        className="w-full rounded border px-3 py-2 text-left hover:bg-accent"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, it.type)}
+                        onClick={() => onAddClick?.(it.type)}
                     >
-                        {p.label}
-                    </Button>
+                        {it.label}
+                    </button>
                 ))}
             </div>
         </div>
