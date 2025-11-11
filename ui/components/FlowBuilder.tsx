@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import {
     ReactFlow,
     ReactFlowProvider,
@@ -29,6 +29,7 @@ import { useFlowStore } from "@/lib/store";
 import { nodeTypesMap } from "@/components/nodes";
 import { validateWorkflow } from "@/lib/validation";
 import { useWorkflow } from "@/hooks/useWorkflow";
+import InspectorPanel from "@/components/InspectorPanel"; // ✅ mount the Inspector
 
 // ---- small error boundary so the app doesn’t white-screen ----
 class Boundary extends React.Component<{ children: React.ReactNode }, { err?: any }> {
@@ -62,6 +63,7 @@ const withDefaults = <T extends { data?: any }>(n: T) => ({
     data: {
         label: n?.data?.label ?? "Node",
         profileId: n?.data?.profileId ?? null,
+        // NOTE: keep config bucket but allow flat fields too (Inspector reads/writes flat)
         config: n?.data?.config ?? {},
         ...n?.data,
     },
@@ -81,6 +83,12 @@ function FlowInner() {
     // React Flow local state (bootstrapped once from store)
     const [rfNodes, setRfNodes, rfOnNodesChange] = useNodesState(nodes.map(withDefaults));
     const [rfEdges, setRfEdges, rfOnEdgesChange] = useEdgesState(edges);
+
+    // Currently selected node (derived from RF selection)
+    const selectedNode: Node | null = useMemo(
+        () => rfNodes.find((n) => n.selected) ?? null,
+        [rfNodes]
+    );
 
     // Mirror RF changes to store using apply* helpers
     const onNodesChange = useCallback(
@@ -174,7 +182,7 @@ function FlowInner() {
         }
     };
 
-    // selection guard
+    // selection guard (still informs store, but Inspector derives from RF)
     const safeSelect = (_: any, n: any) => {
         try {
             if (n?.id && typeof selectNode === "function") selectNode(n.id);
@@ -182,29 +190,6 @@ function FlowInner() {
             console.error("[selectNode error]", err);
         }
     };
-
-    const addAtCenter = (type: string) => {
-        const pane = document.querySelector(".react-flow__pane") as HTMLElement | null;
-        const bounds = pane?.getBoundingClientRect();
-        const pos = rf.screenToFlowPosition({
-            x: (bounds?.left ?? 0) + (bounds?.width ?? 0) / 2,
-            y: (bounds?.top ?? 0) + (bounds?.height ?? 0) / 2,
-        });
-
-        const newNode: Node = {
-            id: crypto.randomUUID(),
-            type,
-            position: pos,
-            data: { label: type },
-        };
-
-        setRfNodes((ns) => {
-            const next = ns.concat(newNode);
-            setStoreNodes(next);
-            return next;
-        });
-    };
-
 
     // ---- Drag & Drop (v12) ----
     const rf = useReactFlow();
@@ -234,11 +219,11 @@ function FlowInner() {
                 id: crypto.randomUUID(),
                 type,
                 position: pos,
-                data: { label: type },
+                data: { label: type }, // Inspector will add type-specific fields
             };
 
             setRfNodes((ns) => {
-                const next = ns.concat(newNode);
+                const next = ns.concat(withDefaults(newNode));
                 setStoreNodes(next);
                 return next;
             });
@@ -246,8 +231,41 @@ function FlowInner() {
         [rf, setRfNodes, setStoreNodes]
     );
 
+    // Commit from Inspector → write into RF nodes and store
+    const onCommitFromInspector = useCallback(
+        (updated: any) => {
+            setRfNodes((prev) => {
+                const next = prev.map((n) => {
+                    if (n.id !== updated.id) return n;
+
+                    // Merge data and ensure the label lives under data.label
+                    const mergedData = {
+                        ...n.data,
+                        ...updated.data,
+                        label: updated.label ?? (n.data as any)?.label ?? "",
+                        config: {
+                            ...(n.data as any)?.config ?? {},
+                            ...(updated.data?.config ?? {}),
+                        },
+                    };
+
+                    return {
+                        ...n,
+                        data: mergedData, // <-- no top-level `label` on Node
+                    };
+                });
+                setStoreNodes(next);
+                return next;
+            });
+        },
+        [setRfNodes, setStoreNodes]
+    );
+
+
     return (
-        <div className="h-full grid grid-cols-[320px_1fr]" onKeyDown={onKeyDown} tabIndex={0}>
+        // ⬅️ Palette | Canvas | Inspector ➡️
+        <div className="h-full grid grid-cols-[320px_1fr_320px]" onKeyDown={onKeyDown} tabIndex={0}>
+            {/* LEFT: palette/actions */}
             <aside className="border-r bg-card p-3 overflow-y-auto">
                 <div className="flex items-center justify-between">
                     <h1 className="text-lg font-semibold">Flow Builder</h1>
@@ -273,6 +291,7 @@ function FlowInner() {
                 </div>
             </aside>
 
+            {/* MIDDLE: canvas */}
             <div className="h-full">
                 <Boundary>
                     <ReactFlow
@@ -287,6 +306,8 @@ function FlowInner() {
                         onDragOver={onDragOver}
                         fitView
                         deleteKeyCode={deleteKeys as any}
+                        snapToGrid
+                        snapGrid={[10, 10]}
                     >
                         <MiniMap />
                         <Controls />
@@ -294,6 +315,11 @@ function FlowInner() {
                     </ReactFlow>
                 </Boundary>
             </div>
+
+            {/* RIGHT: Inspector */}
+            <aside className="border-l bg-background/50 overflow-y-auto">
+                <InspectorPanel selectedNode={selectedNode as any} onCommit={onCommitFromInspector} />
+            </aside>
         </div>
     );
 }
