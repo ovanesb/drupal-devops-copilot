@@ -8,10 +8,12 @@ from typing import Generator, Iterable, Optional, Tuple, Dict, Any
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+
+# Sprint 2 routers
 from server.routers import workflows, profiles
 
-# Routers for Sprint 2
-from server.routers import workflows, profiles
+# FIX: import run router from the package path
+from server.app_run import router as run_router
 
 # ---------- App ----------
 app = FastAPI(title="Drupal DevOps Co-Pilot API")
@@ -38,9 +40,10 @@ def health():
 def root():
     return {"ok": True, "service": "Drupal DevOps Co-Pilot API"}
 
-# Mount NEW API routers
+# Mount API routers
 app.include_router(workflows.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
+app.include_router(run_router, prefix="/api")  # <- /api/run and /api/stream/{job_id}
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPO = os.getenv("COPILOT_REPO_PATH", "./work/drupal-project")

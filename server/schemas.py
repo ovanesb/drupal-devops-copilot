@@ -1,25 +1,41 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel
+
+# ---------- Nodes / Edges ----------
+class WorkflowNode(BaseModel):
+    id: str
+    type: str
+    position: Dict[str, Any] = Field(default_factory=dict)
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowEdge(BaseModel):
+    id: Optional[str] = None
+    source: str
+    target: str
 
 
 # ---------- Workflows ----------
 class WorkflowBase(BaseModel):
-    name: str
-    nodes: Any
-    edges: Any
+    name: str = "demo"
+    nodes: List[WorkflowNode] = Field(default_factory=list)
+    edges: List[WorkflowEdge] = Field(default_factory=list)
 
 
-class WorkflowOut(WorkflowBase):
+class WorkflowOut(BaseModel):
     id: int
+    name: str
+    nodes: List[WorkflowNode] = Field(default_factory=list)
+    edges: List[WorkflowEdge] = Field(default_factory=list)
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # pydantic v2 ORM mode
+        from_attributes = True  # Pydantic v2 ORM mode
 
 
 # ---------- Profiles ----------

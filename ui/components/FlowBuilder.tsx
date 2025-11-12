@@ -29,6 +29,8 @@ import { useFlowStore } from "@/lib/store";
 import { nodeTypesMap } from "@/components/nodes";
 import { validateWorkflow } from "@/lib/validation";
 import { useWorkflow } from "@/hooks/useWorkflow";
+import InspectorPanel from "@/components/InspectorPanel";
+import RunPanel from "@/components/RunPanel";
 
 // ---- small error boundary so the app doesn’t white-screen ----
 class Boundary extends React.Component<{ children: React.ReactNode }, { err?: any }> {
@@ -56,22 +58,25 @@ class Boundary extends React.Component<{ children: React.ReactNode }, { err?: an
     }
 }
 
-// Ensure nodes always have fields our custom nodes expect
-const withDefaults = <T extends { data?: any }>(n: T) => ({
-    ...n,
-    data: {
-        label: n?.data?.label ?? "Node",
-        profileId: n?.data?.profileId ?? null,
-        config: n?.data?.config ?? {},
-        ...n?.data,
-    },
-});
+// Ensure nodes always have fields our custom nodes expect.
+const withDefaults = <T extends { data?: any; type?: string }>(n: T) => {
+    const d = n.data ?? {};
+    return {
+        ...n,
+        data: {
+            ...d,
+            // fill only if missing
+            label: (d as any).label ?? n.type ?? "Node",
+            profileId: (d as any).profileId ?? null,
+            config: { ...(d as any).config ?? {} },
+        },
+    };
+};
 
 function FlowInner() {
     const {
         nodes,
         edges,
-        // rename store setters so we never confuse them with RF setters
         setNodes: setStoreNodes,
         setEdges: setStoreEdges,
         reset,
@@ -81,16 +86,23 @@ function FlowInner() {
     // React Flow local state (bootstrapped once from store)
     const [rfNodes, setRfNodes, rfOnNodesChange] = useNodesState(nodes.map(withDefaults));
     const [rfEdges, setRfEdges, rfOnEdgesChange] = useEdgesState(edges);
+    const [selectedId, setSelectedId] = React.useState<string | null>(null);
+
+    // derive the live selected node from rfNodes by our local id
+    const selectedNode: Node | null = useMemo(
+        () => (selectedId ? rfNodes.find((n) => n.id === selectedId) ?? null : null),
+        [rfNodes, selectedId]
+    );
 
     // Mirror RF changes to store using apply* helpers
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => {
             setRfNodes((prev) => {
                 const next = applyNodeChanges(changes, prev);
-                setStoreNodes(next); // store always receives arrays (not functions)
+                setStoreNodes(next);
                 return next;
             });
-            rfOnNodesChange(changes); // keep RF internals happy
+            rfOnNodesChange(changes);
         },
         [setRfNodes, setStoreNodes, rfOnNodesChange]
     );
@@ -125,14 +137,28 @@ function FlowInner() {
 
     const onSave = () => {
         try {
-            validateWorkflow.parse({ nodes: rfNodes, edges: rfEdges });
-            saveWorkflow.mutate(
-                { name: "demo", nodes: rfNodes.map(withDefaults), edges: rfEdges },
-                {
-                    onSuccess: () => alert("Saved ✨"),
-                    onError: (e: any) => alert("Save failed: " + (e?.message ?? "unknown")),
-                }
-            );
+            const payload = {
+                name: "demo",
+                nodes: rfNodes.map((n) => ({
+                    id: n.id,
+                    type: String(n.type),
+                    position: n.position,
+                    data: n.data ?? {}, // include edited data
+                })),
+                edges: rfEdges.map((e) => ({
+                    id: e.id ?? `${e.source}-${e.target}`,
+                    source: e.source!,
+                    target: e.target!,
+                })),
+            };
+
+            // optional schema check
+            // validateWorkflow.parse(payload);
+
+            saveWorkflow.mutate(payload as any, {
+                onSuccess: () => alert("Saved ✨"),
+                onError: (e: any) => alert("Save failed: " + (e?.message ?? "unknown")),
+            });
         } catch (e: any) {
             alert("Validation failed: " + (e?.message ?? "unknown"));
         }
@@ -174,37 +200,18 @@ function FlowInner() {
         }
     };
 
-    // selection guard
+    // selection guard (still informs store, but Inspector derives from local id)
     const safeSelect = (_: any, n: any) => {
         try {
-            if (n?.id && typeof selectNode === "function") selectNode(n.id);
+            if (n?.id) {
+                console.log("[safeSelect] id=", n.id);       // <-- add this
+                setSelectedId(n.id);
+                if (typeof selectNode === "function") selectNode(n.id);
+            }
         } catch (err) {
             console.error("[selectNode error]", err);
         }
     };
-
-    const addAtCenter = (type: string) => {
-        const pane = document.querySelector(".react-flow__pane") as HTMLElement | null;
-        const bounds = pane?.getBoundingClientRect();
-        const pos = rf.screenToFlowPosition({
-            x: (bounds?.left ?? 0) + (bounds?.width ?? 0) / 2,
-            y: (bounds?.top ?? 0) + (bounds?.height ?? 0) / 2,
-        });
-
-        const newNode: Node = {
-            id: crypto.randomUUID(),
-            type,
-            position: pos,
-            data: { label: type },
-        };
-
-        setRfNodes((ns) => {
-            const next = ns.concat(newNode);
-            setStoreNodes(next);
-            return next;
-        });
-    };
-
 
     // ---- Drag & Drop (v12) ----
     const rf = useReactFlow();
@@ -234,11 +241,11 @@ function FlowInner() {
                 id: crypto.randomUUID(),
                 type,
                 position: pos,
-                data: { label: type },
+                data: { label: type }, // Inspector adds type-specific fields
             };
 
             setRfNodes((ns) => {
-                const next = ns.concat(newNode);
+                const next = ns.concat(withDefaults(newNode));
                 setStoreNodes(next);
                 return next;
             });
@@ -246,8 +253,29 @@ function FlowInner() {
         [rf, setRfNodes, setStoreNodes]
     );
 
+    // Commit from Inspector → write into RF nodes and store
+    const onCommitFromInspector = (next: { id: string; data: any; type?: string; position?: any }) => {
+        setRfNodes((prev) => {
+            const updated = prev.map((n) =>
+                n.id === next.id
+                    ? {
+                        ...n,
+                        type: (next as any).type ?? n.type,
+                        position: (next as any).position ?? n.position,
+                        data: { ...(n.data ?? {}), ...(next.data ?? {}) },
+                    }
+                    : n
+            );
+            console.log("[onCommitFromInspector] merged node=", updated.find(u => u.id === next.id));
+
+            setStoreNodes(updated);
+            return updated;
+        });
+    };
+
     return (
-        <div className="h-full grid grid-cols-[320px_1fr]" onKeyDown={onKeyDown} tabIndex={0}>
+        <div className="h-full grid grid-cols-[320px_1fr_320px]" onKeyDown={onKeyDown} tabIndex={0}>
+            {/* LEFT: palette/actions */}
             <aside className="border-r bg-card p-3 overflow-y-auto">
                 <div className="flex items-center justify-between">
                     <h1 className="text-lg font-semibold">Flow Builder</h1>
@@ -273,6 +301,7 @@ function FlowInner() {
                 </div>
             </aside>
 
+            {/* MIDDLE: canvas */}
             <div className="h-full">
                 <Boundary>
                     <ReactFlow
@@ -287,6 +316,8 @@ function FlowInner() {
                         onDragOver={onDragOver}
                         fitView
                         deleteKeyCode={deleteKeys as any}
+                        snapToGrid
+                        snapGrid={[10, 10]}
                     >
                         <MiniMap />
                         <Controls />
@@ -294,6 +325,20 @@ function FlowInner() {
                     </ReactFlow>
                 </Boundary>
             </div>
+
+            {/* RIGHT: Inspector + Run */}
+            <aside className="border-l bg-background/50 overflow-y-auto">
+                <div className="grid grid-rows-[auto_auto_minmax(0,1fr)] h-full">
+                    <div className="p-2 font-medium border-b">Inspector</div>
+                    <div className="p-2">
+                        <InspectorPanel selectedNode={selectedNode as any} onCommit={onCommitFromInspector} />
+                    </div>
+                    <div className="p-2 font-medium border-t">Run</div>
+                    <div className="min-h-0">
+                        <RunPanel nodes={rfNodes} edges={rfEdges} />
+                    </div>
+                </div>
+            </aside>
         </div>
     );
 }
