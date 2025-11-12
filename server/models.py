@@ -15,9 +15,10 @@ class Workflow(Base):
     __tablename__ = "workflows"
 
     id: int = Column(Integer, primary_key=True, index=True)
-    name: str = Column(String(255), nullable=False)
-    nodes: Any = Column(JSONB, nullable=False, server_default="{}")
-    edges: Any = Column(JSONB, nullable=False, server_default="{}")
+    name: str = Column(String(255), nullable=False, default="demo")
+    # Store as JSON arrays; default to [] both at ORM-level and DB-level
+    nodes: Any = Column(JSONB, nullable=False, default=list, server_default="[]")
+    edges: Any = Column(JSONB, nullable=False, default=list, server_default="[]")
     created_at: datetime = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

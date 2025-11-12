@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
     ReactFlow,
     ReactFlowProvider,
@@ -29,7 +29,8 @@ import { useFlowStore } from "@/lib/store";
 import { nodeTypesMap } from "@/components/nodes";
 import { validateWorkflow } from "@/lib/validation";
 import { useWorkflow } from "@/hooks/useWorkflow";
-import InspectorPanel from "@/components/InspectorPanel"; // ✅ mount the Inspector
+import InspectorPanel from "@/components/InspectorPanel";
+import RunPanel from "@/components/RunPanel";
 
 // ---- small error boundary so the app doesn’t white-screen ----
 class Boundary extends React.Component<{ children: React.ReactNode }, { err?: any }> {
@@ -57,23 +58,25 @@ class Boundary extends React.Component<{ children: React.ReactNode }, { err?: an
     }
 }
 
-// Ensure nodes always have fields our custom nodes expect
-const withDefaults = <T extends { data?: any }>(n: T) => ({
-    ...n,
-    data: {
-        label: n?.data?.label ?? "Node",
-        profileId: n?.data?.profileId ?? null,
-        // NOTE: keep config bucket but allow flat fields too (Inspector reads/writes flat)
-        config: n?.data?.config ?? {},
-        ...n?.data,
-    },
-});
+// Ensure nodes always have fields our custom nodes expect.
+const withDefaults = <T extends { data?: any; type?: string }>(n: T) => {
+    const d = n.data ?? {};
+    return {
+        ...n,
+        data: {
+            ...d,
+            // fill only if missing
+            label: (d as any).label ?? n.type ?? "Node",
+            profileId: (d as any).profileId ?? null,
+            config: { ...(d as any).config ?? {} },
+        },
+    };
+};
 
 function FlowInner() {
     const {
         nodes,
         edges,
-        // rename store setters so we never confuse them with RF setters
         setNodes: setStoreNodes,
         setEdges: setStoreEdges,
         reset,
@@ -83,11 +86,12 @@ function FlowInner() {
     // React Flow local state (bootstrapped once from store)
     const [rfNodes, setRfNodes, rfOnNodesChange] = useNodesState(nodes.map(withDefaults));
     const [rfEdges, setRfEdges, rfOnEdgesChange] = useEdgesState(edges);
+    const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
-    // Currently selected node (derived from RF selection)
+    // derive the live selected node from rfNodes by our local id
     const selectedNode: Node | null = useMemo(
-        () => rfNodes.find((n) => n.selected) ?? null,
-        [rfNodes]
+        () => (selectedId ? rfNodes.find((n) => n.id === selectedId) ?? null : null),
+        [rfNodes, selectedId]
     );
 
     // Mirror RF changes to store using apply* helpers
@@ -95,10 +99,10 @@ function FlowInner() {
         (changes: NodeChange[]) => {
             setRfNodes((prev) => {
                 const next = applyNodeChanges(changes, prev);
-                setStoreNodes(next); // store always receives arrays (not functions)
+                setStoreNodes(next);
                 return next;
             });
-            rfOnNodesChange(changes); // keep RF internals happy
+            rfOnNodesChange(changes);
         },
         [setRfNodes, setStoreNodes, rfOnNodesChange]
     );
@@ -133,14 +137,28 @@ function FlowInner() {
 
     const onSave = () => {
         try {
-            validateWorkflow.parse({ nodes: rfNodes, edges: rfEdges });
-            saveWorkflow.mutate(
-                { name: "demo", nodes: rfNodes.map(withDefaults), edges: rfEdges },
-                {
-                    onSuccess: () => alert("Saved ✨"),
-                    onError: (e: any) => alert("Save failed: " + (e?.message ?? "unknown")),
-                }
-            );
+            const payload = {
+                name: "demo",
+                nodes: rfNodes.map((n) => ({
+                    id: n.id,
+                    type: String(n.type),
+                    position: n.position,
+                    data: n.data ?? {}, // include edited data
+                })),
+                edges: rfEdges.map((e) => ({
+                    id: e.id ?? `${e.source}-${e.target}`,
+                    source: e.source!,
+                    target: e.target!,
+                })),
+            };
+
+            // optional schema check
+            // validateWorkflow.parse(payload);
+
+            saveWorkflow.mutate(payload as any, {
+                onSuccess: () => alert("Saved ✨"),
+                onError: (e: any) => alert("Save failed: " + (e?.message ?? "unknown")),
+            });
         } catch (e: any) {
             alert("Validation failed: " + (e?.message ?? "unknown"));
         }
@@ -182,10 +200,14 @@ function FlowInner() {
         }
     };
 
-    // selection guard (still informs store, but Inspector derives from RF)
+    // selection guard (still informs store, but Inspector derives from local id)
     const safeSelect = (_: any, n: any) => {
         try {
-            if (n?.id && typeof selectNode === "function") selectNode(n.id);
+            if (n?.id) {
+                console.log("[safeSelect] id=", n.id);       // <-- add this
+                setSelectedId(n.id);
+                if (typeof selectNode === "function") selectNode(n.id);
+            }
         } catch (err) {
             console.error("[selectNode error]", err);
         }
@@ -219,7 +241,7 @@ function FlowInner() {
                 id: crypto.randomUUID(),
                 type,
                 position: pos,
-                data: { label: type }, // Inspector will add type-specific fields
+                data: { label: type }, // Inspector adds type-specific fields
             };
 
             setRfNodes((ns) => {
@@ -232,38 +254,26 @@ function FlowInner() {
     );
 
     // Commit from Inspector → write into RF nodes and store
-    const onCommitFromInspector = useCallback(
-        (updated: any) => {
-            setRfNodes((prev) => {
-                const next = prev.map((n) => {
-                    if (n.id !== updated.id) return n;
-
-                    // Merge data and ensure the label lives under data.label
-                    const mergedData = {
-                        ...n.data,
-                        ...updated.data,
-                        label: updated.label ?? (n.data as any)?.label ?? "",
-                        config: {
-                            ...(n.data as any)?.config ?? {},
-                            ...(updated.data?.config ?? {}),
-                        },
-                    };
-
-                    return {
+    const onCommitFromInspector = (next: { id: string; data: any; type?: string; position?: any }) => {
+        setRfNodes((prev) => {
+            const updated = prev.map((n) =>
+                n.id === next.id
+                    ? {
                         ...n,
-                        data: mergedData, // <-- no top-level `label` on Node
-                    };
-                });
-                setStoreNodes(next);
-                return next;
-            });
-        },
-        [setRfNodes, setStoreNodes]
-    );
+                        type: (next as any).type ?? n.type,
+                        position: (next as any).position ?? n.position,
+                        data: { ...(n.data ?? {}), ...(next.data ?? {}) },
+                    }
+                    : n
+            );
+            console.log("[onCommitFromInspector] merged node=", updated.find(u => u.id === next.id));
 
+            setStoreNodes(updated);
+            return updated;
+        });
+    };
 
     return (
-        // ⬅️ Palette | Canvas | Inspector ➡️
         <div className="h-full grid grid-cols-[320px_1fr_320px]" onKeyDown={onKeyDown} tabIndex={0}>
             {/* LEFT: palette/actions */}
             <aside className="border-r bg-card p-3 overflow-y-auto">
@@ -316,9 +326,18 @@ function FlowInner() {
                 </Boundary>
             </div>
 
-            {/* RIGHT: Inspector */}
+            {/* RIGHT: Inspector + Run */}
             <aside className="border-l bg-background/50 overflow-y-auto">
-                <InspectorPanel selectedNode={selectedNode as any} onCommit={onCommitFromInspector} />
+                <div className="grid grid-rows-[auto_auto_minmax(0,1fr)] h-full">
+                    <div className="p-2 font-medium border-b">Inspector</div>
+                    <div className="p-2">
+                        <InspectorPanel selectedNode={selectedNode as any} onCommit={onCommitFromInspector} />
+                    </div>
+                    <div className="p-2 font-medium border-t">Run</div>
+                    <div className="min-h-0">
+                        <RunPanel nodes={rfNodes} edges={rfEdges} />
+                    </div>
+                </div>
             </aside>
         </div>
     );
